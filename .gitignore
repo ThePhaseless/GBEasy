@@ -8,6 +8,7 @@ wheels/
 
 tools/
 test_app/
+*.spec
 
 # Virtual environments
 .venv
