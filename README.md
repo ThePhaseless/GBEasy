@@ -6,7 +6,9 @@ Generate and apply Goldberg Emulator on a given steam app.
 
 ### From source
 1. [Download `uv`](https://docs.astral.sh/uv/getting-started/installation/)
-2. `uvx --from git+https://github.com/ThePhaseless/GBEasy cli.py <path to game>`
+2. Clone the repository
+3. Run `uv sync`
+4. Run `uv run cli.py <path to game>`
 
 ### From binary
 1. Click on [Actions](https://github.com/ThePhaseless/GBEasy/actions)
