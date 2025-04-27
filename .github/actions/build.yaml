@@ -1,0 +1,25 @@
+name: Build .exe
+
+jobs:
+  build:
+    name: python
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build
+        run: uv run pyinstaller -F cli.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: dist
