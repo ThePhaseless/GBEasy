@@ -1,24 +1,24 @@
 import logging
 import shutil
-import subprocess
 import sys
 from pathlib import Path
+from typing import List
 
 from src.functions import (
     copy_contents,
     find_and_get_appid,
-    find_file_recursive,
     get_7zr,
     get_emu,
     get_emu_tools,
     get_steamless,
+    run_process,
     setup_argument_parser,
 )
 from src.variables import (
+    CONFIG_EMU_EXE,
     DOWNLOAD_DIR,
     EMU_PATH,
-    EMU_TOOLS_PATH,
-    GENERATOR_EXE,
+    INTERFACES_EMU_EXE,
     TOOLS_DIR,
 )
 
@@ -34,90 +34,96 @@ def main():
 
     logging.info("--- Determining Steam AppID ---")
     app_id = find_and_get_appid(game_path)
-    if not app_id:
-        logging.error("Failed to get Steam AppID. Exiting.")
-        sys.exit(1)
 
     # --- Ensure working directories exist ---
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
     TOOLS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # --- Step 1: Download and setup Tools ---
+    # --- Download and setup Tools ---
     get_7zr()  # aka 7zip cli
     get_emu_tools()
     get_emu()
     get_steamless()
 
-    # --- Step 2: Find steam_api64.dll ---
-    logging.info("--- Locating steam_api64.dll ---")
-    steam_api_dir = None
-
-    if not (dll_path := find_file_recursive(game_path, "steam_api64.dll")):
-        logging.error(f"Could not find steam_api64.dll within {game_path}. Exiting.")
-        sys.exit(1)
-    else:
-        steam_api_dir = dll_path.parent
-
-    # --- Step 4: Call generate_emu_config ---
-    logging.info("--- Generating Emulator Config ---")
-    generator_output_dir = EMU_TOOLS_PATH / "output"  # Default output dir for the tool
-    command = [str(GENERATOR_EXE), "-cve", "-token", app_id]
-    logging.info(f"Running: \n{' '.join(command)}")
-    try:
-        # Run from the directory containing the exe to handle relative paths correctly
-        process = subprocess.run(
-            command,
-            check=True,
-            cwd=EMU_TOOLS_PATH,
-        )
-        if process.stderr:
-            logging.warning("Generator errors/warnings\n")
-            sys.exit(1)
-        logging.info("generate_emu_config executed successfully.")
-    except FileNotFoundError:
-        logging.error(
-            f"Generator executable not found at {GENERATOR_EXE}. Ensure it was extracted correctly."
-        )
-        sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        logging.error(f"generate_emu_config failed with return code {e.returncode}.")
-        logging.error(f"Output:\n{e.stdout}")
-        logging.error(f"Error Output:\n{e.stderr}")
-        sys.exit(1)
-    except Exception as e:
-        logging.error(f"An unexpected error occurred while running the generator: {e}")
+    # Decrypt .exe files with steamless
+    logging.info("--- Decrypting .exe files with Steamless ---")
+    steamless_cli = TOOLS_DIR / "steamless" / "steamless.cli.exe"
+    if not steamless_cli.exists():
+        logging.error("steamless.cli.exe not found. Exiting.")
         sys.exit(1)
 
-    # --- Step 7: Copy Generator Output ---
-    logging.info("--- Copying Generated Files ---")
-    generator_appid_output_dir = generator_output_dir / app_id
-    if not generator_appid_output_dir.is_dir():
-        logging.error(
-            f"Generator output directory '{generator_appid_output_dir}' not found. Check generator execution."
-        )
-        sys.exit(1)
-    if not copy_contents(generator_appid_output_dir, steam_api_dir):
-        logging.error("Failed to copy generator output files. Exiting.")
+    exe_list: List[Path] = []
+    for steam_dll in game_path.rglob("*.exe"):
+        if steam_dll.is_file():
+            exe_list.append(steam_dll)
+
+    if not exe_list or len(exe_list) == 0:
+        logging.error("No .exe files found in the game directory. Exiting.")
         sys.exit(1)
 
-    # --- Step 8: Copy Experimental Files ---
-    logging.info("--- Copying emulator Files ---")
-    if not copy_contents(EMU_PATH, steam_api_dir):
-        logging.error("Failed to copy files. Exiting.")
-        sys.exit(1)
-
-    # --- Cleanup ---
-    if args.cleanup:
-        logging.info("--- Cleaning up downloaded and extracted files ---")
+    logging.info("Trying to decrypt files")
+    for exe in exe_list:
         try:
-            if DOWNLOAD_DIR.exists():
-                shutil.rmtree(DOWNLOAD_DIR)
-                logging.info(f"Removed {DOWNLOAD_DIR}")
-            if TOOLS_DIR.exists():
-                shutil.rmtree(TOOLS_DIR)
-                logging.info(f"Removed {TOOLS_DIR}")
-        except Exception as e:
-            logging.warning(f"Error during cleanup: {e}")
+            run_process([str(steamless_cli), "--quiet", str(exe)], False)
+            logging.info(f"{exe} decrypted successfully.")
+        except Exception:
+            pass
+        else:
+            logging.info(f"Decrypted {exe.name} successfully, replacing...")
+            shutil.copyfile(exe, exe.with_suffix(".exe.bak"))
+            shutil.move(exe.with_suffix(".exe.unpacked.exe"), exe)
+
+    # --- Find steam_api64.dll ---
+    logging.info("--- Locating steam_api64.dll ---")
+    steam_dlls: List[Path] = []
+    for steam_dll in game_path.rglob("steam_api64.dll"):
+        # Check if path contains word crack or original
+        if "crack" in str(steam_dll).lower() or "original" in str(steam_dll).lower():
+            logging.info(f"Skipping {steam_dll} as it is a crack or original version.")
+            continue
+        if steam_dll.is_file():
+            logging.info(f"Found steam_api64.dll at {steam_dll}")
+            steam_dlls.append(steam_dll)
+            shutil.copy(
+                steam_dll, steam_dll.with_suffix(".dll.bak")
+            )  # Rename original dll
+    if not steam_dlls:
+        logging.error("steam_api64.dll not found in src directory. Exiting.")
+        sys.exit(1)
+
+    # --- Call generate_emu_config ---
+    logging.info("--- Generating Emulator Config ---")
+    command = [str(CONFIG_EMU_EXE), "-cve", "-token", app_id]
+    run_process(command, show_output=True)
+
+    # --- Copy Generator Output ---
+    logging.info("--- Copying Emulator Config Files ---")
+    for steam_dll in steam_dlls:
+        shutil.copytree(
+            Path("output") / app_id,
+            steam_dll.parent,
+            dirs_exist_ok=True,
+        )
+
+    # --- Generate interfaces ---
+    logging.info("--- Generating Interfaces ---")
+    for steam_dll in steam_dlls:
+        command = [str(INTERFACES_EMU_EXE), str(steam_dll)]
+        try:
+            run_process(command, print_errors=False)
+        except Exception:
+            logging.error(f"Failed to generate interfaces for {steam_dll}")
+            continue
+
+        shutil.copyfile(
+            "steam_interfaces.txt",
+            steam_dll.parent / "steam_settings",
+        )
+        # --- Copy Experimental Files ---
+        logging.info("--- Copying Interfaces ---")
+        if not copy_contents(EMU_PATH, steam_dll.parent):
+            logging.error("Failed to copy files. Exiting.")
+            sys.exit(1)
 
     logging.info("--- Script finished successfully! ---")
 
