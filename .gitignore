@@ -10,5 +10,8 @@ tools/
 test_app/
 *.spec
 
+output/
+steam_interfaces.txt
+
 # Virtual environments
 .venv
