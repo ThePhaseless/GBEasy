@@ -222,11 +222,12 @@ def setup_argument_parser():
         "game_path",
         help="Path to the game's installation directory.",
     )
-    parser.add_argument(
-        "--cleanup",
-        action="store_true",
-        help="Delete downloaded and extracted tool files after script completion.",
-    )
+    # !TODO
+    # parser.add_argument(
+    #     "--client",
+    #     action="store_true",
+    #     help="Instead of overwriting the dlls, use the Steam Goldberg Client to inject emulator into the app.",
+    # )
     args = parser.parse_args()
     return args
 

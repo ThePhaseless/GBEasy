@@ -28,10 +28,7 @@ logging.basicConfig(
 )
 
 
-def main():
-    args = setup_argument_parser()
-    game_path = Path(args.game_path)
-
+def overwrite_dll(game_path: Path) -> None:
     logging.info("--- Determining Steam AppID ---")
     app_id = find_and_get_appid(game_path)
 
@@ -129,4 +126,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = setup_argument_parser()
+    overwrite_dll(game_path=Path(args.game_path))
