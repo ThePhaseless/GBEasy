@@ -415,7 +415,7 @@ def overwrite_dll(game_path: Path) -> None:
 
     # --- Call generate_emu_config ---
     logging.info("--- Generating Emulator Config ---")
-    command = [str(CONFIG_EMU_EXE), "-cve", "-token", app_id]
+    command = [str(CONFIG_EMU_EXE), "-cve", "-aw", "-token", app_id]
     run_process(command, show_output=True)
 
     # --- Copy Generator Output ---
