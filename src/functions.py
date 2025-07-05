@@ -430,7 +430,7 @@ def overwrite_dll(game_path: Path) -> None:
     # --- Generate interfaces ---
     logging.info("--- Generating Interfaces ---")
     for steam_dll in steam_dlls:
-        command = [str(INTERFACES_EMU_EXE), str(steam_dll)]
+        command = [str(INTERFACES_EMU_EXE), '"' + str(steam_dll) + '"']
         try:
             run_process(command, print_errors=False)
         except Exception:
