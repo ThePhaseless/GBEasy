@@ -430,19 +430,18 @@ def overwrite_dll(game_path: Path) -> None:
     # --- Generate interfaces ---
     logging.info("--- Generating Interfaces ---")
     for steam_dll in steam_dlls:
-        command = [str(INTERFACES_EMU_EXE), '"' + str(steam_dll) + '"']
+        command = [str(INTERFACES_EMU_EXE), str(steam_dll)]
         try:
-            run_process(command, print_errors=False)
+            run_process(command)
+            shutil.copyfile(
+                "steam_interfaces.txt",
+                steam_dll.parent / "steam_settings",
+            )
         except Exception:
             logging.error(f"Failed to generate interfaces for {steam_dll}")
-            continue
 
-        shutil.copyfile(
-            "steam_interfaces.txt",
-            steam_dll.parent / "steam_settings",
-        )
         # --- Copy Experimental Files ---
-        logging.info("--- Copying Interfaces ---")
+        logging.info("--- Copying Steam Emu ---")
         if not copy_contents(EMU_PATH, steam_dll.parent):
             logging.error("Failed to copy files. Exiting.")
             sys.exit(1)
